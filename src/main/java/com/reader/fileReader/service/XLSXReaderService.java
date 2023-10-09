@@ -79,20 +79,16 @@ public class XLSXReaderService {
                                 cellValue = null;
                                 break;
                         }
-
                         try {
                             BeanUtils.setProperty(safety, propertyName, cellValue);
                         } catch (Exception e) {
                             e.printStackTrace();
                         }
                     }
-
                     columnIndex++;
                 }
-
                 safetyIncidentList.add(safety);
             }
-
         }
         return safetyIncidentList;
     }
