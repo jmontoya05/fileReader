@@ -13,6 +13,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
+
 @Service
 public class XLSXReaderService {
 
@@ -42,70 +45,72 @@ public class XLSXReaderService {
 
     private List<SafetyIncident> readXLSX(Sheet sheet, Workbook workbook) {
         List<SafetyIncident> safetyIncidentList = new ArrayList<>();
-        boolean firstFile = true;
+
         for (Row row : sheet) {
-            if (firstFile) {
-                firstFile = false;
-            } else {
 
-                SafetyIncident safety = new SafetyIncident();
-                int columnIndex = 0;
+            SafetyIncident safety = new SafetyIncident();
+            int columnIndex = 0;
 
-                for (Cell cell : row) {
-                    String columnName = sheet.getRow(0).getCell(columnIndex).getStringCellValue();
-                    String propertyName = mapProperties().get(columnName);
+            for (Cell cell : row) {
+                String columnName = sheet.getRow(0).getCell(columnIndex).getStringCellValue();
+                String propertyName = mapProperties().get(columnName);
 
-                    if (propertyName != null) {
-                        String cellValue;
-                        switch (cell.getCellType()) {
-                            case STRING:
-                                cellValue = cell.getStringCellValue();
-                                break;
-                            case NUMERIC:
-                                double numericValue = cell.getNumericCellValue();
-                                cellValue = String.valueOf(numericValue);
-                                break;
-                            case FORMULA:
-                                FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
-                                CellValue cellVal = evaluator.evaluate(cell);
-                                cellValue = cellVal.formatAsString();
-                                break;
-                            default:
-                                cellValue = null;
-                                break;
-                        }
-
-                        try {
-                            BeanUtils.setProperty(safety, propertyName, cellValue);
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
+                if (propertyName != null) {
+                    String cellValue;
+                    switch (cell.getCellType()) {
+                        case STRING:
+                            cellValue = cell.getStringCellValue();
+                            break;
+                        case NUMERIC:
+                            double numericValue = cell.getNumericCellValue();
+                            cellValue = String.valueOf(numericValue);
+                            break;
+                        case FORMULA:
+                            FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
+                            CellValue cellVal = evaluator.evaluate(cell);
+                            cellValue = cellVal.formatAsString();
+                            break;
+                        default:
+                            cellValue = null;
+                            break;
                     }
 
-                    columnIndex++;
+                    try {
+                        BeanUtils.setProperty(safety, propertyName, cellValue);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
                 }
 
-                safetyIncidentList.add(safety);
+                columnIndex++;
             }
 
+            safetyIncidentList.add(safety);
         }
         return safetyIncidentList;
     }
 
-    private String validateXLSX(List<SafetyIncident> safetyIncidents){
-        int valid = 0, invalid = 0;
-        for (SafetyIncident safetyIncident : safetyIncidents) {
-            if (fileReaderFeignClient.validateXLSX(safetyIncident)) {
-                valid++;
-            } else {
-                invalid++;
-            }
-        }
-        return "Líneas validas: " + valid +
-                "\nLíneas invalidas: " + invalid;
+    private String validateXLSX(List<SafetyIncident> safetyIncidents) {
+        List<CompletableFuture<Boolean>> futures = safetyIncidents.stream()
+                .map(safetyIncident -> CompletableFuture.supplyAsync(() -> fileReaderFeignClient.validateXLSX(safetyIncident)))
+                .collect(Collectors.toList());
+
+        CompletableFuture<Void> allOf = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
+
+        CompletableFuture<List<Boolean>> allResults = allOf.thenApply(v ->
+                futures.stream()
+                        .map(future -> future.join())
+                        .collect(Collectors.toList())
+        );
+
+        long validCount = allResults.join().stream().filter(Boolean::booleanValue).count();
+        long invalidCount = safetyIncidents.size() - validCount;
+
+        return "Líneas validas: " + validCount +
+                "\nLíneas invalidas: " + invalidCount;
     }
 
-    private Map<String, String> mapProperties(){
+    private Map<String, String> mapProperties() {
         Map<String, String> columnToPropertyMap = new HashMap<>();
         columnToPropertyMap.put("Date", "date");
         columnToPropertyMap.put("Injury Location", "injuryLocation");
