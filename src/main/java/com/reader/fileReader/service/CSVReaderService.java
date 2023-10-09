@@ -32,10 +32,10 @@ public class CSVReaderService {
                     .withIgnoreLeadingWhiteSpace(true)
                     .build();
 
+            List<Person> persons = csvToBean.parse();
             reader.close();
             fileReader.close();
 
-            List<Person> persons = csvToBean.parse();
             //Pendiente exepción
             return validateCSV(persons);
 
