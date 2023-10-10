@@ -29,6 +29,8 @@ account manager, Educational psychologist, si es alguno de estas , se tomara com
 valida.
 Si no cumple con alguna de estas validaciones no se tomará la línea como valida, y retornara
 false al servicio.
+
+
 Si el archivo es Excel las validaciones deben de ser las siguientes.
 1) Validar el Injury Location que sea diferente de N/A
 2) Validar el Report Type solo se deben aceptar (Near Miss, Lost Time, First Aid)
