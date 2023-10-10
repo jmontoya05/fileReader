@@ -36,3 +36,7 @@ Si el archivo es Excel las validaciones deben de ser las siguientes.
 2) Validar el Report Type solo se deben aceptar (Near Miss, Lost Time, First Aid)
 Si no cumple con alguna de estas validaciones la línea queda marcada cono invalida, y retornara
 false al servicio
+
+## Servicio de validación
+
+https://github.com/jmontoya05/fileValidator
