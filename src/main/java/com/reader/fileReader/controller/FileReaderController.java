@@ -1,5 +1,6 @@
 package com.reader.fileReader.controller;
 
+import com.reader.fileReader.exception.BadRequestsException;
 import com.reader.fileReader.model.File;
 import com.reader.fileReader.service.CSVReaderService;
 import com.reader.fileReader.service.XLSXReaderService;
@@ -23,13 +24,17 @@ public class FileReaderController {
     @PostMapping
     public String uploadCSVFile(@RequestBody File file) {
         String typeFile = file.getType();
-        switch (typeFile.toLowerCase()){
-            case "csv":
-                return this.csvReaderService.uploadCSVFile(file);
-            case "xlsx":
-                return this.xlsxReaderService.uploadXLSXFile(file);
-            default:
-                return "Archivo no valido";
+        try {
+            switch (typeFile.toLowerCase()){
+                case "csv":
+                    return this.csvReaderService.uploadCSVFile(file);
+                case "xlsx":
+                    return this.xlsxReaderService.uploadXLSXFile(file);
+                default:
+                    throw new BadRequestsException("Tipo de archivo no valido");
+            }
+        } catch (NullPointerException e){
+            throw new BadRequestsException("El atributo type es requerido: " + e.getMessage());
         }
     }
 }

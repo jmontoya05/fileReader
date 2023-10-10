@@ -1,19 +1,25 @@
 package com.reader.fileReader.service;
 
+import com.reader.fileReader.exception.BadRequestsException;
+import com.reader.fileReader.exception.InternalServerErrorException;
 import com.reader.fileReader.feign.FileReaderFeignClient;
 import com.reader.fileReader.model.File;
 import com.reader.fileReader.model.SafetyIncident;
 import org.apache.commons.beanutils.BeanUtils;
+import org.apache.poi.openxml4j.exceptions.InvalidOperationException;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
@@ -29,19 +35,17 @@ public class XLSXReaderService {
     }
 
     public String uploadXLSXFile(File file) {
-        try {
-            String filePath = file.getFilePath();
-            Workbook workbook = new XSSFWorkbook(filePath);
+        String filePath = file.getFilePath();
+        try (Workbook workbook = new XSSFWorkbook(filePath)) {
             Sheet sheet = workbook.getSheetAt(0);
-            workbook.close();
             List<SafetyIncident> safetyIncidentList = readXLSX(sheet, workbook);
 
             return validateXLSX(safetyIncidentList);
 
-        } catch (Exception e) {
-            //Pendiente gestionar exepción
-            e.printStackTrace();
-            return "Se totió";
+        } catch (NullPointerException | IllegalArgumentException e) {
+            throw new BadRequestsException("El atributo filePath es requerido: " + e.getMessage());
+        } catch (IOException | InvalidOperationException e) {
+            throw new BadRequestsException("No se encontró el archivo en la ruta especificada: " + e.getMessage());
         }
     }
 
@@ -81,8 +85,8 @@ public class XLSXReaderService {
                         }
                         try {
                             BeanUtils.setProperty(safety, propertyName, cellValue);
-                        } catch (Exception e) {
-                            e.printStackTrace();
+                        } catch (IllegalAccessException | InvocationTargetException e) {
+                            throw new InternalServerErrorException("Hubo un problema con el formateo del archivo: " + e.getMessage());
                         }
                     }
                     columnIndex++;
@@ -93,7 +97,7 @@ public class XLSXReaderService {
         return safetyIncidentList;
     }
 
-    private String validateXLSX(List<SafetyIncident> safetyIncidents){
+    private String validateXLSX(List<SafetyIncident> safetyIncidents) {
         int numThreads = 150;
         ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
         List<CompletableFuture<Boolean>> futures = safetyIncidents.stream()
@@ -102,14 +106,14 @@ public class XLSXReaderService {
         CompletableFuture<Void> allOf = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
         try {
             allOf.get();
-        } catch (Exception e) {
-            System.out.println("Error en las tareas");
+        } catch (InterruptedException | ExecutionException e) {
+            throw new InternalServerErrorException("Hubo un problema con la conexión al servicio validador: " + e.getMessage());
         }
         long validCount = futures.stream()
                 .map(future -> {
                     try {
                         return future.get();
-                    } catch (Exception e) {
+                    } catch (InterruptedException | ExecutionException e) {
                         return false;
                     }
                 })
@@ -120,7 +124,7 @@ public class XLSXReaderService {
         return "Líneas válidas: " + validCount + "\nLíneas inválidas: " + invalidCount;
     }
 
-    private Map<String, String> mapProperties(){
+    private Map<String, String> mapProperties() {
         Map<String, String> columnToPropertyMap = new HashMap<>();
         columnToPropertyMap.put("Date", "date");
         columnToPropertyMap.put("Injury Location", "injuryLocation");
