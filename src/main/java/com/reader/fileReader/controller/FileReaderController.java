@@ -5,6 +5,8 @@ import com.reader.fileReader.model.File;
 import com.reader.fileReader.service.CSVReaderService;
 import com.reader.fileReader.service.XLSXReaderService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,14 +24,14 @@ public class FileReaderController {
     }
 
     @PostMapping
-    public String uploadCSVFile(@RequestBody File file) {
+    public ResponseEntity<String> uploadCSVFile(@RequestBody File file) {
         String typeFile = file.getType();
         try {
             switch (typeFile.toLowerCase()){
                 case "csv":
-                    return this.csvReaderService.uploadCSVFile(file);
+                    return new ResponseEntity<>(csvReaderService.uploadCSVFile(file), HttpStatus.OK);
                 case "xlsx":
-                    return this.xlsxReaderService.uploadXLSXFile(file);
+                    return new ResponseEntity<>(xlsxReaderService.uploadXLSXFile(file), HttpStatus.OK);
                 default:
                     throw new BadRequestsException("Tipo de archivo no valido");
             }
